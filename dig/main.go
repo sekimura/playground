@@ -100,7 +100,7 @@ func pack(name string) (*bytes.Buffer, error) {
 	for _, label := range strings.Split(name, ".") {
 		// byte is just an alias for uint8
 		l := uint8(len(label))
-		b.WriteByte(uint8(l))
+		b.WriteByte(l)
 		if l > 0 {
 			b.WriteString(label)
 		}
