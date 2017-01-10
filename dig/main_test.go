@@ -66,13 +66,13 @@ func TestWalkName(t *testing.T) {
 	} {
 		out, off := decompName(b, tt.off0)
 		if out != tt.out {
-			t.Errorf("walkName(b, %v) expected output %v but got %v)", tt.off0, tt.out, out)
+			t.Errorf("deompName(b, %v) expected output %v but got %v)", tt.off0, tt.out, out)
 		}
 		if off != tt.off {
-			t.Errorf("walkName(b, %v) expected offset %v but got %v)", tt.off0, tt.off, off)
+			t.Errorf("deompName(b, %v) expected offset %v but got %v)", tt.off0, tt.off, off)
 		}
 		if b[off] != tt.next {
-			t.Errorf("walkName(b, %v) expected next byte was %v but got %v)", tt.off0, tt.next, b[off])
+			t.Errorf("deompName(b, %v) expected next byte was %v but got %v)", tt.off0, tt.next, b[off])
 		}
 	}
 }
