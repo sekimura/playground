@@ -59,9 +59,10 @@ func TestWalkName(t *testing.T) {
 		off0 int
 		out  string
 		off  int
+		next byte
 	}{
-		{12, "www.facebook.com.", 30},
-		//		{46, "star-mini.c10r.facebook.com.", 64},
+		{12, "www.facebook.com.", 30, 0x00},
+		{46, "star-mini.c10r.facebook.com.", 63, 0xc0},
 	} {
 		out, off := decompName(b, tt.off0)
 		if out != tt.out {
@@ -69,6 +70,9 @@ func TestWalkName(t *testing.T) {
 		}
 		if off != tt.off {
 			t.Errorf("walkName(b, %v) expected offset %v but got %v)", tt.off0, tt.off, off)
+		}
+		if b[off] != tt.next {
+			t.Errorf("walkName(b, %v) expected next byte was %v but got %v)", tt.off0, tt.next, b[off])
 		}
 	}
 }
