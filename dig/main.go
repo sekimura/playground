@@ -68,29 +68,29 @@ func main() {
 }
 
 type msgHeader struct {
-	id      uint16
-	bits    [2]byte
-	qdcount uint16
-	ancount uint16
-	nscount uint16
-	arcount uint16
+	ID      uint16
+	Bits    [2]byte
+	QDcount uint16
+	ANcount uint16
+	NScount uint16
+	ARcount uint16
 }
 
 type msgQuestionFooter struct {
-	qtype  uint16
-	qclass uint16
+	Qtype  uint16
+	Qclass uint16
 }
 
 func pack(name string) (*bytes.Buffer, error) {
 	b := new(bytes.Buffer)
 
 	h := msgHeader{
-		id:      uint16(rand.Intn(1 << 16)),
-		bits:    [2]byte{1, 0},
-		qdcount: uint16(1),
-		ancount: uint16(0),
-		nscount: uint16(0),
-		arcount: uint16(0),
+		ID:      uint16(rand.Intn(1 << 16)),
+		Bits:    [2]byte{1, 0},
+		QDcount: uint16(1),
+		ANcount: uint16(0),
+		NScount: uint16(0),
+		ARcount: uint16(0),
 	}
 	if err := binary.Write(b, binary.BigEndian, &h); err != nil {
 		return nil, err
@@ -107,8 +107,8 @@ func pack(name string) (*bytes.Buffer, error) {
 	}
 
 	f := msgQuestionFooter{
-		qtype:  uint16(1), // A
-		qclass: uint16(1), // IN
+		Qtype:  uint16(1), // A
+		Qclass: uint16(1), // IN
 	}
 	if err := binary.Write(b, binary.BigEndian, &f); err != nil {
 		return nil, err
