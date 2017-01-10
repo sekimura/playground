@@ -116,3 +116,49 @@ func pack(name string) (*bytes.Buffer, error) {
 
 	return b, nil
 }
+
+// decompName decompress RFC 1035 4.1.4. Message compression and returns name
+// as string and next offset as int
+func decompName(b []byte, off int) (string, int) {
+	buf := bytes.NewBuffer(nil)
+	off0 := off
+	for {
+		if off-off0 > 256 {
+			break
+		}
+		c := b[off]
+		if c >= 0xc0 {
+			// TODO: handle 01 and 10 bits cases
+			// technically offset is uint14 value
+			off += 1
+			p := binary.BigEndian.Uint16([]byte{c ^ 0xc0, b[off]})
+			buf.WriteString(labels(b, int(p)))
+			break
+		} else {
+			if c == 0x00 {
+				break
+			}
+			l := int(b[off])
+			off += 1
+			buf.Write(b[off : off+l])
+			buf.WriteString(".")
+			off += l
+		}
+	}
+	return buf.String(), off + 1
+}
+
+func labels(b []byte, off int) string {
+	buf := bytes.NewBuffer(nil)
+	for {
+		if b[off] == 0x00 {
+			break
+		}
+		l := int(b[off])
+		off += 1
+		buf.Write(b[off : off+l])
+		buf.WriteString(".")
+		off += l
+	}
+	return buf.String()
+}
