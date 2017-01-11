@@ -121,11 +121,7 @@ func pack(name string) (*bytes.Buffer, error) {
 // as string and next offset as int
 func decompName(b []byte, off int) (string, int) {
 	buf := bytes.NewBuffer(nil)
-	off0 := off
 	for {
-		if off-off0 > 256 {
-			break
-		}
 		c := b[off]
 		if c >= 0xc0 {
 			// TODO: handle 01 and 10 bits cases
