@@ -13,12 +13,17 @@ import (
 	"time"
 )
 
+var (
+	flagType = flag.String("type", "A", "QType")
+)
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 	flag.Parse()
 }
 
 func main() {
+
 	name := flag.Arg(0)
 	resolver := flag.Arg(1)
 
@@ -37,7 +42,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	query, err := pack(name)
+	query, err := pack(name, *flagType)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,13 +67,13 @@ func main() {
 		switch rr.Type {
 		case 0x5:
 			fmt.Printf("%s is an alias for %s\n", rr.Name, rr.RData)
-		case 0x1:
+		case 0x1, 0x01c:
 			fmt.Printf("%s has an address %s\n", rr.Name, rr.RData)
 		}
 	}
 }
 
-func pack(name string) (*bytes.Buffer, error) {
+func pack(name, qtypeStr string) (*bytes.Buffer, error) {
 	b := new(bytes.Buffer)
 
 	h := MsgHeader{
@@ -93,11 +98,19 @@ func pack(name string) (*bytes.Buffer, error) {
 		}
 	}
 
+	var qtype MsgQtype
+	switch qtypeStr {
+	case "A":
+		qtype = MsgQtype(1)
+	case "AAAA":
+		qtype = MsgQtype(28)
+	}
+
 	f := struct {
 		Qtype  MsgQtype
 		Qclass MsgQclass
 	}{
-		Qtype:  MsgQtype(1),  // A
+		Qtype:  qtype,
 		Qclass: MsgQclass(1), // IN
 	}
 	if err := binary.Write(b, binary.BigEndian, &f); err != nil {
@@ -192,7 +205,10 @@ func unpack(b []byte) (*Msg, error) {
 			rr.RData = aname
 			off += n
 		case 0x1: // A
-			rr.RData = net.IPv4(b[off], b[off+1], b[off+2], b[off+3])
+			rr.RData = net.IP(b[off : off+net.IPv4len])
+			off += 4
+		case 0x1c: // AAAA
+			rr.RData = net.IP(b[off : off+net.IPv6len])
 			off += 4
 		}
 

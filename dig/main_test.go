@@ -43,19 +43,6 @@ func TestWalkName(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		off int
-		out string
-	}{
-		{12, "www.facebook.com."},
-		{16, "facebook.com."},
-		{25, "com."},
-	} {
-		if labels(b, tt.off) != tt.out {
-			t.Errorf("labels(b, %v) did not match %v", tt.off, tt.out)
-		}
-	}
-
-	for _, tt := range []struct {
 		off  int
 		out  string
 		read int
