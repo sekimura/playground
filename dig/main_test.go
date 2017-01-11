@@ -56,23 +56,23 @@ func TestWalkName(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		off0 int
-		out  string
 		off  int
+		out  string
+		read int
 		next byte
 	}{
-		{12, "www.facebook.com.", 30, 0x00},
-		{46, "star-mini.c10r.facebook.com.", 63, 0xc0},
+		{12, "www.facebook.com.", 18, 0x00},
+		{46, "star-mini.c10r.facebook.com.", 17, 0xc0},
 	} {
-		out, off := decompName(b, tt.off0)
+		out, read := decompName(b, tt.off)
 		if out != tt.out {
-			t.Errorf("deompName(b, %v) expected output %v but got %v)", tt.off0, tt.out, out)
+			t.Errorf("deompName(b, %v) expected output %v but got %v)", tt.off, tt.out, out)
 		}
-		if off != tt.off {
-			t.Errorf("deompName(b, %v) expected offset %v but got %v)", tt.off0, tt.off, off)
+		if read != tt.read {
+			t.Errorf("deompName(b, %v) expected offset %v but got %v)", tt.off, tt.read, read)
 		}
-		if b[off] != tt.next {
-			t.Errorf("deompName(b, %v) expected next byte was %v but got %v)", tt.off0, tt.next, b[off])
+		if b[tt.off+read] != tt.next {
+			t.Errorf("deompName(b, %v) expected next byte was %v but got %v)", tt.off, tt.next, b[tt.off+read])
 		}
 	}
 }

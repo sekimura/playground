@@ -52,39 +52,26 @@ func main() {
 		log.Fatal(err)
 	}
 
-	out := new(bytes.Buffer)
-
-	fmt.Fprintf(out, "%s has address ", name)
-	// Skip Question Section and pick the last four octets
-	offset := len(query.Bytes()) + 12
-	for i := offset; i < offset+4; i++ {
-		if i > offset {
-			fmt.Fprint(out, ".")
-		}
-		fmt.Fprint(out, answer[i])
+	a, err := unpack(answer)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	fmt.Println(out.String())
-}
-
-type msgHeader struct {
-	ID      uint16
-	Bits    [2]byte
-	QDcount uint16
-	ANcount uint16
-	NScount uint16
-	ARcount uint16
-}
-
-type msgQuestionFooter struct {
-	Qtype  uint16
-	Qclass uint16
+	for i := 0; i < int(a.Header.ANcount); i++ {
+		rr := a.RRs[i]
+		switch rr.Type {
+		case 0x5:
+			fmt.Printf("%s is an alias for %s\n", rr.Name, rr.RData)
+		case 0x1:
+			fmt.Printf("%s has an address %s\n", rr.Name, rr.RData)
+		}
+	}
 }
 
 func pack(name string) (*bytes.Buffer, error) {
 	b := new(bytes.Buffer)
 
-	h := msgHeader{
+	h := MsgHeader{
 		ID:      uint16(rand.Intn(1 << 16)),
 		Bits:    [2]byte{1, 0},
 		QDcount: uint16(1),
@@ -106,9 +93,12 @@ func pack(name string) (*bytes.Buffer, error) {
 		}
 	}
 
-	f := msgQuestionFooter{
-		Qtype:  uint16(1), // A
-		Qclass: uint16(1), // IN
+	f := struct {
+		Qtype  MsgQtype
+		Qclass MsgQclass
+	}{
+		Qtype:  MsgQtype(1),  // A
+		Qclass: MsgQclass(1), // IN
 	}
 	if err := binary.Write(b, binary.BigEndian, &f); err != nil {
 		return nil, err
@@ -117,9 +107,130 @@ func pack(name string) (*bytes.Buffer, error) {
 	return b, nil
 }
 
+type Msg struct {
+	Header MsgHeader
+	QName  string
+	Qtype  MsgQtype
+	Qclass MsgQclass
+	RRs    []RR
+}
+
+type MsgHeader struct {
+	ID      uint16
+	Bits    [2]byte
+	QDcount uint16
+	ANcount uint16
+	NScount uint16
+	ARcount uint16
+}
+
+type MsgQtype uint16
+type MsgQclass uint16
+
+type RR struct {
+	Name     string
+	Type     uint16
+	Class    uint16
+	TTL      uint32
+	RDLength uint16
+	RData    interface{}
+}
+
+func unpack(b []byte) (*Msg, error) {
+	var h MsgHeader
+	buf := bytes.NewBuffer(b[:12])
+	if err := binary.Read(buf, binary.BigEndian, &h); err != nil {
+		return nil, err
+	}
+	qname, n := decompName(b, 12)
+	off := 12 + n
+
+	var f struct {
+		Qtype  MsgQtype
+		Qclass MsgQclass
+	}
+	buf = bytes.NewBuffer(b[off : off+4])
+	if err := binary.Read(buf, binary.BigEndian, &f); err != nil {
+		return nil, err
+	}
+	off += 4
+
+	ret := Msg{
+		Header: h,
+		QName:  qname,
+		Qtype:  f.Qtype,
+		Qclass: f.Qclass,
+
+		RRs: make([]RR, int(h.ANcount)),
+	}
+
+	for i := 0; i < int(h.ANcount); i++ {
+		name, n := decompName(b, off)
+		off += n
+		var m struct {
+			Type     uint16
+			Class    uint16
+			TTL      uint32
+			RDLength uint16
+		}
+		buf = bytes.NewBuffer(b[off : off+10])
+		if err := binary.Read(buf, binary.BigEndian, &m); err != nil {
+			return nil, err
+		}
+		off += 10
+
+		rr := RR{
+			Name:     name,
+			Type:     m.Type,
+			Class:    m.Class,
+			TTL:      m.TTL,
+			RDLength: m.RDLength,
+		}
+		switch rr.Type {
+		case 0x5: // CNAME
+			aname, n := decompName(b, off)
+			rr.RData = aname
+			off += n
+		case 0x1: // A
+			rr.RData = net.IPv4(b[off], b[off+1], b[off+2], b[off+3])
+			off += 4
+		}
+
+		ret.RRs[i] = rr
+	}
+
+	return &ret, nil
+}
+
 // decompName decompress RFC 1035 4.1.4. Message compression and returns name
-// as string and next offset as int
+// as string and read bytes count as int
 func decompName(b []byte, off int) (string, int) {
+	buf := bytes.NewBuffer(nil)
+	off0 := off
+	for {
+		c := b[off]
+		if c >= 0xc0 {
+			// TODO: handle 01 and 10 bits cases
+			// technically offset is uint14 value
+			off += 1
+			p := binary.BigEndian.Uint16([]byte{c ^ 0xc0, b[off]})
+			buf.WriteString(labels(b, int(p)))
+			break
+		} else {
+			if c == 0 {
+				break
+			}
+			l := int(b[off])
+			off += 1
+			buf.Write(b[off : off+l])
+			buf.WriteString(".")
+			off += l
+		}
+	}
+	return buf.String(), off - off0 + 1
+}
+
+func labels(b []byte, off int) string {
 	buf := bytes.NewBuffer(nil)
 	for {
 		c := b[off]
@@ -131,7 +242,7 @@ func decompName(b []byte, off int) (string, int) {
 			buf.WriteString(labels(b, int(p)))
 			break
 		} else {
-			if c == 0x00 {
+			if c == 0 {
 				break
 			}
 			l := int(b[off])
@@ -140,21 +251,6 @@ func decompName(b []byte, off int) (string, int) {
 			buf.WriteString(".")
 			off += l
 		}
-	}
-	return buf.String(), off + 1
-}
-
-func labels(b []byte, off int) string {
-	buf := bytes.NewBuffer(nil)
-	for {
-		if b[off] == 0x00 {
-			break
-		}
-		l := int(b[off])
-		off += 1
-		buf.Write(b[off : off+l])
-		buf.WriteString(".")
-		off += l
 	}
 	return buf.String()
 }
