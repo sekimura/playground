@@ -52,13 +52,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	a, err := unpack(answer)
+	msg, err := unpack(answer)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for i := 0; i < int(a.Header.ANcount); i++ {
-		rr := a.RRs[i]
+	for i := 0; i < int(msg.Header.ANcount); i++ {
+		rr := msg.RRs[i]
 		switch rr.Type {
 		case 0x5:
 			fmt.Printf("%s is an alias for %s\n", rr.Name, rr.RData)
@@ -214,7 +214,8 @@ func decompName(b []byte, off int) (string, int) {
 			// technically offset is uint14 value
 			off += 1
 			p := binary.BigEndian.Uint16([]byte{c ^ 0xc0, b[off]})
-			buf.WriteString(labels(b, int(p)))
+			s, _ := decompName(b, int(p))
+			buf.WriteString(s)
 			break
 		} else {
 			if c == 0 {
@@ -228,29 +229,4 @@ func decompName(b []byte, off int) (string, int) {
 		}
 	}
 	return buf.String(), off - off0 + 1
-}
-
-func labels(b []byte, off int) string {
-	buf := bytes.NewBuffer(nil)
-	for {
-		c := b[off]
-		if c >= 0xc0 {
-			// TODO: handle 01 and 10 bits cases
-			// technically offset is uint14 value
-			off += 1
-			p := binary.BigEndian.Uint16([]byte{c ^ 0xc0, b[off]})
-			buf.WriteString(labels(b, int(p)))
-			break
-		} else {
-			if c == 0 {
-				break
-			}
-			l := int(b[off])
-			off += 1
-			buf.Write(b[off : off+l])
-			buf.WriteString(".")
-			off += l
-		}
-	}
-	return buf.String()
 }
