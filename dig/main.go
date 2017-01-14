@@ -46,6 +46,10 @@ func main() {
 	switch *flagType {
 	case "A":
 		qtype = dns.QtypeA
+	case "NS":
+		qtype = dns.QtypeNS
+	case "SOA":
+		qtype = dns.QtypeSOA
 	case "AAAA":
 		qtype = dns.QtypeAAAA
 	default:
@@ -53,18 +57,22 @@ func main() {
 	}
 
 	msg0 := &dns.Message{
-		ID:      uint16(rand.Intn(1 << 16)),
-		Flags:   uint16(0x0100),
-		QDcount: uint16(1),
-		QName:   name,
-		Qtype:   qtype,
-		Qclass:  dns.QclassIN,
+		ID:       uint16(rand.Intn(1 << 16)),
+		Flags:    uint16(0x0100),
+		QDcount:  uint16(1),
+		Question: make([]dns.Q, 1),
+	}
+	msg0.Question[0] = dns.Q{
+		Name:  name,
+		Type:  qtype,
+		Class: dns.QclassIN,
 	}
 
 	b, err := dns.Pack(msg0)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// log.Printf("%#v\n", b)
 
 	if _, err := conn.Write(b); err != nil {
 		log.Fatal(err)
@@ -76,6 +84,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// log.Printf("%#v\n", bb)
+
 	msg, err := dns.Unpack(bb)
 	if err != nil {
 		log.Fatal(err)
@@ -86,8 +96,13 @@ func main() {
 		switch rr.Type {
 		case dns.QtypeCNAME:
 			fmt.Printf("%s is an alias for %s\n", rr.Name, rr.RData)
+		case dns.QtypeNS:
+			fmt.Printf("%s has nameserver %s\n", rr.Name, rr.RData)
 		case dns.QtypeA, dns.QtypeAAAA:
 			fmt.Printf("%s has an address %s\n", rr.Name, rr.RData)
+		default:
+			fmt.Printf("%s has data %#v\n", rr.Name, rr.RData)
 		}
 	}
+
 }
